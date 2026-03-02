@@ -1,10 +1,11 @@
 """
-大模型调用（OpenAI 兼容 API）：新闻→行业/标的、新闻+行情→操作建议。
+大模型调用（OpenAI 兼容 API）：新闻→行业/标的、新闻+行情→操作建议。带超时与重试。
 """
 from __future__ import annotations
 
 import json
 import re
+import time
 from typing import Any
 
 from src.config import settings
@@ -12,10 +13,33 @@ from src.config import settings
 
 def _client():
     from openai import OpenAI
+    timeout = getattr(settings, "llm_timeout_seconds", 60.0) or 60.0
     return OpenAI(
         base_url=settings.openai_api_base or None,
         api_key=settings.openai_api_key or "sk-dummy",
+        timeout=float(timeout),
     )
+
+
+def _chat_with_retry(messages: list[dict], temperature: float = 0.2) -> str:
+    max_retries = max(0, getattr(settings, "llm_max_retries", 2))
+    last_err = None
+    for attempt in range(max_retries + 1):
+        try:
+            client = _client()
+            r = client.chat.completions.create(
+                model=settings.openai_model,
+                messages=messages,
+                temperature=temperature,
+            )
+            return (r.choices[0].message.content or "").strip()
+        except Exception as e:
+            last_err = e
+            if attempt < max_retries:
+                time.sleep(1.0 * (attempt + 1))
+            else:
+                raise last_err
+    raise last_err or RuntimeError("llm failed")
 
 
 def get_industries_and_symbols(news_items: list[dict[str, Any]]) -> dict[str, Any]:
@@ -39,13 +63,7 @@ def get_industries_and_symbols(news_items: list[dict[str, Any]]) -> dict[str, An
 {text[:12000]}
 """
     try:
-        client = _client()
-        r = client.chat.completions.create(
-            model=settings.openai_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-        )
-        raw = (r.choices[0].message.content or "").strip()
+        raw = _chat_with_retry([{"role": "user", "content": prompt}], temperature=0.2)
         # 提取 JSON
         m = re.search(r"\{[\s\S]*\}", raw)
         if m:
@@ -58,11 +76,13 @@ def get_industries_and_symbols(news_items: list[dict[str, Any]]) -> dict[str, An
         return {"industries": [], "symbols": [], "error": str(e)}
 
 
-# 多策略角色（ai-hedge-fund 思想迁移）：游资/北向/价值
+# 多策略角色（ai-hedge-fund / FinGenius 雏形）：游资/北向/价值/舆情/风控
 TRADING_ROLES = [
     ("游资策略", "侧重短线情绪、资金流向、龙虎榜与题材炒作，给出偏短线的买卖建议。"),
     ("北向资金策略", "侧重北向资金流向、外资偏好、估值与流动性，给出偏中短期的买卖建议。"),
     ("价值投资策略", "侧重基本面、估值、长期景气度，给出偏中长期的买卖建议。"),
+    ("舆情分析师", "侧重新闻情绪、舆情热度、利好利空解读，给出基于情绪面的买卖建议。"),
+    ("风控官", "侧重仓位控制、止损止盈、波动与回撤，给出保守偏防守的买卖建议。"),
 ]
 
 
@@ -105,13 +125,7 @@ def get_trading_suggestions(
 {symbols_str}
 """
     try:
-        client = _client()
-        r = client.chat.completions.create(
-            model=settings.openai_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-        )
-        raw = (r.choices[0].message.content or "").strip()
+        raw = _chat_with_retry([{"role": "user", "content": prompt}], temperature=0.3)
         m = re.search(r"\{[\s\S]*\}", raw)
         if m:
             data = json.loads(m.group())
@@ -134,7 +148,7 @@ def get_trading_suggestions_multi(
     symbols_quote: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """
-    三视角（游资/北向/价值）分别生成建议，再合并为综合结论。
+    多视角（游资/北向/价值/舆情/风控）分别生成建议，再按标的投票合并。
     返回 { "perspectives": [ { "role", "summary", "actions" }, ... ], "combined": { "summary", "actions" } }。
     """
     if not settings.openai_api_key:
@@ -170,7 +184,7 @@ def get_trading_suggestions_multi(
         combined_actions.append({
             "symbol": sym,
             "action": best,
-            "reason": f"三视角投票: {dict(cnt)}",
+            "reason": f"多视角投票: {dict(cnt)}",
             "suggested_amount": suggested_amount,
         })
     combined_summary = " | ".join(p.get("summary", "") for p in perspectives if p.get("summary"))

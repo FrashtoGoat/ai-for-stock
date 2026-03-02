@@ -32,7 +32,7 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
 - 日报接口：`GET http://localhost:8000/api/daily-report?symbols=600519,000001`
 - **生成并推送**：`GET http://localhost:8000/api/daily-report/push`（生成日报并推到已配置的飞书/钉钉）
-- **新闻→操作建议→模拟交易**：`POST /api/news-trade/run?dry_run=true`（仅建议），`?dry_run=false` 执行模拟下单；`?multi=true` 启用三视角（游资/北向/价值）合并建议；`GET /api/news-trade/suggestions`、`GET /api/news-trade/suggestions-multi`（仅返回建议）
+- **新闻→操作建议→模拟交易**：`POST /api/news-trade/run?dry_run=true`（仅建议），`?dry_run=false` 执行模拟下单；`?multi=true` 启用多视角（游资/北向/价值/舆情/风控）合并建议；`GET /api/news-trade/suggestions`、`GET /api/news-trade/suggestions-multi`（仅返回建议）
 - **图表（图文报告）**：`GET http://localhost:8000/api/chart?symbol=600519&days=60` 返回 PNG 近 N 日收盘价曲线，供报告或 OpenClaw 内嵌
 - 健康检查：`GET http://localhost:8000/health`
 - **接口文档**：启动后访问 `http://localhost:8000/docs` 查看 Swagger UI。
@@ -56,6 +56,8 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 | `OPENAI_API_BASE` | 大模型 API 地址（OpenAI 兼容，如 DeepSeek） |
 | `OPENAI_API_KEY` | 大模型 API Key |
 | `OPENAI_MODEL` | 模型名，如 `gpt-4o-mini`、`deepseek-chat` |
+| `LLM_TIMEOUT_SECONDS` | 大模型请求超时（默认 60） |
+| `LLM_MAX_RETRIES` | 大模型失败重试次数（默认 2） |
 | `SIM_BROKER_INITIAL_CASH` | 本地模拟盘初始资金（默认 1000000） |
 | `DEFAULT_INDEX_SYMBOL` | 大盘指数代码（默认 399300 沪深300） |
 | `PUBLIC_BASE_URL` | 日报推送中图表链接根地址（如 `http://your-server:8000`），可选 |
@@ -73,12 +75,12 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 - 使用 AKShare 日 K + matplotlib 生成标的近 N 日收盘价曲线 PNG。
 - `GET /api/chart?symbol=600519&days=60`：OpenClaw 或报告流程可请求该 URL 内嵌图片，实现「图文并茂」。
 
-## Phase 3：多策略三视角（已实现）
+## Phase 3：多策略多视角（已实现）
 
-- **游资 / 北向 / 价值** 三种角色分别生成操作建议，再按标的投票合并，降低单一视角偏差。
-- `GET /api/news-trade/suggestions-multi`：仅返回三视角与合并结果；`POST /api/news-trade/run?multi=true`：全链路采用合并建议并可模拟下单。
+- **游资 / 北向 / 价值 / 舆情 / 风控** 五角色分别生成操作建议，再按标的投票合并，降低单一视角偏差；LLM 调用带超时与重试。
+- `GET /api/news-trade/suggestions-multi`：仅返回多视角与合并结果；`POST /api/news-trade/run?multi=true`：全链路采用合并建议并可模拟下单。
 
 ## 后续 Phase
 
-- **Phase 4**：FinGenius 16 角色 Agent 协同（OpenClaw 侧配置多 Agent 辩论）。
+- **Phase 4**：FinGenius 16 角色 Agent 协同（OpenClaw 侧配置多 Agent 辩论，本仓库可扩展更多角色或加权合并）。
 - 可选：将 OpenBB 数据/图表封装为更多 Tools，进一步丰富报告。

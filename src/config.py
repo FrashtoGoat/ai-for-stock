@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     openai_api_base: str = "https://api.deepseek.com"
     openai_api_key: str = ""
     openai_model: str = "deepseek-chat"
+    llm_timeout_seconds: float = 60.0
+    llm_max_retries: int = 2
 
     # 模拟盘 / 真实交易（第三方 API；本地 SimBroker 时用 initial_cash）
     sim_broker_base_url: str = ""
