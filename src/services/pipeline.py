@@ -7,8 +7,8 @@ from typing import Any
 
 from src.services.broker_sim import get_sim_broker
 from src.services.llm import get_industries_and_symbols, get_trading_suggestions, get_trading_suggestions_multi
-from src.services.market import get_market_and_symbols_quote
-from src.services.news_fetcher import fetch_recent_news
+from src.services.market import get_market_and_symbols_quote_cached
+from src.services.news_fetcher import fetch_recent_news_cached
 
 
 def run_news_to_trade(
@@ -28,8 +28,8 @@ def run_news_to_trade(
         "orders": [],
         "error": None,
     }
-    # 1) 拉新闻
-    news_items = fetch_recent_news(limit=news_limit)
+    # 1) 拉新闻（带 60s 缓存）
+    news_items = fetch_recent_news_cached(limit=news_limit)
     result["news"] = [{"time": n.get("time"), "content": (n.get("title", "") + " " + n.get("content", ""))[:200]} for n in news_items]
     if not news_items:
         result["error"] = "no news fetched"
@@ -42,8 +42,8 @@ def run_news_to_trade(
         result["error"] = ir.get("error")
     if not symbols:
         return result
-    # 3) 大盘+标的行情
-    market = get_market_and_symbols_quote(symbols)
+    # 3) 大盘+标的行情（带 60s 缓存）
+    market = get_market_and_symbols_quote_cached(symbols)
     result["market"] = market
     symbols_quote = market.get("symbols") or []
     # 新闻摘要（供 LLM）
@@ -103,7 +103,7 @@ def run_news_to_trade_multi(
         result["error"] = ir.get("error")
     if not symbols:
         return result
-    market = get_market_and_symbols_quote(symbols)
+    market = get_market_and_symbols_quote_cached(symbols)
     result["market"] = market
     symbols_quote = market.get("symbols") or []
     news_summary = "\n".join(f"[{n.get('time')}] {n.get('content', '')}" for n in news_items[:30])

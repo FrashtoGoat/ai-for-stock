@@ -1,9 +1,13 @@
 """
-财经新闻拉取：AKShare 财联社快讯 / 金十资讯，统一结构供 LLM 使用。
+财经新闻拉取：AKShare 财联社快讯 / 金十资讯，统一结构供 LLM 使用。支持短期缓存。
 """
 from __future__ import annotations
 
 from typing import Any
+
+from src.services.cache import get_or_set
+
+_NEWS_CACHE_TTL = 60.0
 
 
 def fetch_recent_news(limit: int = 50) -> list[dict[str, Any]]:
@@ -45,3 +49,8 @@ def fetch_recent_news(limit: int = 50) -> list[dict[str, Any]]:
     except Exception:
         pass
     return out
+
+
+def fetch_recent_news_cached(limit: int = 50, ttl: float = _NEWS_CACHE_TTL) -> list[dict[str, Any]]:
+    """带缓存的拉取，ttl 秒内重复调用返回缓存结果。"""
+    return get_or_set(f"news:{limit}", lambda: fetch_recent_news(limit), ttl=ttl)

@@ -81,3 +81,17 @@ def get_market_and_symbols_quote(symbols: list[str], index_symbol: str | None = 
         "index": get_index_quote(index_symbol),
         "symbols": get_symbols_quote(symbols),
     }
+
+
+def get_market_and_symbols_quote_cached(
+    symbols: list[str],
+    index_symbol: str | None = None,
+    ttl: float = 60.0,
+) -> dict[str, Any]:
+    """带缓存的行情获取，ttl 秒内相同 symbols 返回缓存。"""
+    from src.services.cache import get_or_set
+    key_index = f"index:{index_symbol or settings.default_index_symbol or '399300'}"
+    key_syms = "symbols:" + ",".join(sorted(s.strip().zfill(6) for s in symbols))
+    index = get_or_set(key_index, lambda: get_index_quote(index_symbol), ttl=ttl)
+    syms = get_or_set(key_syms, lambda: get_symbols_quote(symbols), ttl=ttl)
+    return {"index": index, "symbols": syms}

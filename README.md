@@ -80,7 +80,12 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 - **游资 / 北向 / 价值 / 舆情 / 风控** 五角色分别生成操作建议，再按标的投票合并，降低单一视角偏差；LLM 调用带超时与重试。
 - `GET /api/news-trade/suggestions-multi`：仅返回多视角与合并结果；`POST /api/news-trade/run?multi=true`：全链路采用合并建议并可模拟下单。
 
+## 其他
+
+- **缓存**：新闻与行情接口带 60s 内存缓存，短时重复请求不重复拉 AKShare。
+- **实盘占位**：`src/services/broker_live.py` 实现 Broker 接口占位，配置 `REAL_BROKER_BASE_URL`、`REAL_BROKER_API_KEY` 后可在 pipeline 中注入实盘 Broker；当前未对接券商 API，所有操作返回未实现。
+
 ## 后续 Phase
 
 - **Phase 4**：FinGenius 16 角色 Agent 协同（OpenClaw 侧配置多 Agent 辩论，本仓库可扩展更多角色或加权合并）。
-- 可选：将 OpenBB 数据/图表封装为更多 Tools，进一步丰富报告。
+- 可选：将 OpenBB 数据/图表封装为更多 Tools；在 broker_live 内对接真实券商 API。

@@ -48,3 +48,20 @@ def test_suggestions_multi_structure():
     assert "suggestions" in body
     assert "perspectives" in body["suggestions"]
     assert "combined" in body["suggestions"]
+
+
+def test_news_trade_run_dry_run_multi():
+    mock_out = {
+        "news": [],
+        "industries_and_symbols": {"symbols": ["600519"]},
+        "market": {"index": {}, "symbols": []},
+        "suggestions": {"combined": {"summary": "ok", "actions": []}},
+        "orders": [],
+        "error": None,
+    }
+    with patch("src.main.run_news_to_trade_multi", return_value=mock_out):
+        r = client.post("/api/news-trade/run?dry_run=true&multi=true")
+    assert r.status_code == 200
+    body = r.json()
+    assert "suggestions" in body
+    assert body.get("suggestions", {}).get("combined") is not None
