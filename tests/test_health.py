@@ -11,7 +11,9 @@ client = TestClient(app)
 def test_health():
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json().get("status") == "ok"
+    j = r.json()
+    assert j.get("status") == "ok"
+    assert "version" in j
 
 
 def test_daily_report_requires_symbols_or_default():
@@ -73,3 +75,14 @@ def test_news_trade_run_dry_run_multi():
     body = r.json()
     assert "suggestions" in body
     assert body.get("suggestions", {}).get("combined") is not None
+
+
+def test_news_trade_run_cooldown():
+    from src.config import settings
+    mock_out = {"orders": [], "suggestions": {}, "error": None}
+    with patch("src.main.run_news_to_trade", return_value=mock_out), patch.object(settings, "news_trade_cooldown_seconds", 999.0):
+        r1 = client.post("/api/news-trade/run?dry_run=false")
+        assert r1.status_code == 200
+        r2 = client.post("/api/news-trade/run?dry_run=false")
+        assert r2.status_code == 429
+        assert "cooldown" in r2.json().get("detail", "")

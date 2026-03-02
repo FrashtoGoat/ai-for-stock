@@ -62,6 +62,8 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 | `DEFAULT_INDEX_SYMBOL` | 大盘指数代码（默认 399300 沪深300） |
 | `CACHE_TTL_SECONDS` | 新闻/行情缓存 TTL（秒），0 不缓存，默认 60 |
 | `MAX_SYMBOLS_PER_REQUEST` | 单次请求最大标的数，默认 20 |
+| `USE_LIVE_BROKER` | 是否使用实盘 Broker（仅 dry_run=false 时生效），默认 false |
+| `NEWS_TRADE_COOLDOWN_SECONDS` | 新闻→交易 下单冷却（秒），冷却内再次 run 返回 429，0 不限制 |
 | `PUBLIC_BASE_URL` | 日报推送中图表链接根地址（如 `http://your-server:8000`），可选 |
 
 ## 文档与脚本
@@ -85,7 +87,8 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ## 其他
 
 - **缓存**：新闻与行情接口带 60s 内存缓存，短时重复请求不重复拉 AKShare。
-- **实盘占位**：`src/services/broker_live.py` 实现 Broker 接口占位，配置 `REAL_BROKER_BASE_URL`、`REAL_BROKER_API_KEY` 后可在 pipeline 中注入实盘 Broker；当前未对接券商 API，所有操作返回未实现。
+- **实盘占位**：`src/services/broker_live.py` 实现 Broker 接口占位；配置 `REAL_BROKER_*` 并在 `broker_live` 内对接券商 API 后，设 `USE_LIVE_BROKER=true` 即可在 pipeline 下单时走实盘。
+- **下单冷却**：`NEWS_TRADE_COOLDOWN_SECONDS>0` 时，在冷却期内再次 `POST /api/news-trade/run?dry_run=false` 会返回 429，防止误触重复下单。
 
 ## 后续 Phase
 

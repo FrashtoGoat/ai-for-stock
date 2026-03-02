@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     # 实盘券商（broker_live 占位，配置后需在 broker_live 内对接具体 API）
     real_broker_base_url: str = ""
     real_broker_api_key: str = ""
+    # 是否使用实盘 Broker（仅当 dry_run=false 时生效；true 时 pipeline 注入 LiveBroker）
+    use_live_broker: bool = False
+    # 新闻→交易 run 下单冷却（秒），此时间内再次 POST run?dry_run=false 返回 429，0 表示不限制
+    news_trade_cooldown_seconds: float = 0.0
 
     # 新闻/行情缓存 TTL（秒），0 表示不缓存
     cache_ttl_seconds: float = 60.0

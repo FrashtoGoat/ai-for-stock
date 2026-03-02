@@ -5,6 +5,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.config import settings
+from src.services.broker_live import get_live_broker
 from src.services.broker_sim import get_sim_broker
 from src.services.llm import get_industries_and_symbols, get_trading_suggestions, get_trading_suggestions_multi
 from src.services.market import get_market_and_symbols_quote_cached
@@ -57,7 +59,8 @@ def run_news_to_trade(
     if dry_run:
         result["orders"] = [{"dry_run": True, "action": a} for a in (sug.get("actions") or []) if (a.get("action") or "hold") in ("buy", "sell")]
         return result
-    broker = broker or get_sim_broker()
+    if broker is None:
+        broker = get_live_broker() if getattr(settings, "use_live_broker", False) else get_sim_broker()
     orders_out = []
     for a in sug.get("actions") or []:
         act = (a.get("action") or "hold").lower()
@@ -114,7 +117,8 @@ def run_news_to_trade_multi(
     if dry_run:
         result["orders"] = [{"dry_run": True, "action": a} for a in (sug.get("combined", {}).get("actions") or []) if (a.get("action") or "hold") in ("buy", "sell")]
         return result
-    broker = broker or get_sim_broker()
+    if broker is None:
+        broker = get_live_broker() if getattr(settings, "use_live_broker", False) else get_sim_broker()
     orders_out = []
     for a in sug.get("combined", {}).get("actions") or []:
         act = (a.get("action") or "hold").lower()

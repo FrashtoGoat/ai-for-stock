@@ -1,6 +1,7 @@
 """
 FastAPI 入口：提供每日决策日报、新闻→操作建议→交易 等 API。
 """
+import time
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse, Response
 
@@ -10,10 +11,13 @@ from src.services.daily_report import build_daily_report
 from src.services.notify import push_to_dingtalk, push_to_feishu
 from src.services.pipeline import run_news_to_trade, run_news_to_trade_multi
 
+APP_VERSION = "0.1.0"
+_news_trade_last_run_time: float = 0.0
+
 app = FastAPI(
     title="ai-for-stock",
     description="A-share daily report API for OpenClaw (AKShare + daily_stock_analysis template)",
-    version="0.1.0",
+    version=APP_VERSION,
 )
 
 _MAX_SYMBOLS = 20
@@ -31,7 +35,7 @@ def _normalize_symbols(symbols: str | None) -> list[str]:
 @app.get("/health", tags=["系统"])
 def health():
     """健康检查。"""
-    return {"status": "ok"}
+    return {"status": "ok", "version": APP_VERSION}
 
 
 @app.get("/api/daily-report", tags=["日报"])
@@ -105,7 +109,18 @@ def api_news_trade_run(dry_run: bool = True, multi: bool = False):
     """
     执行新闻→行业/标的→大盘与行情→操作建议→（可选）模拟下单。
     dry_run=true 时只执行到操作建议，不下单；multi=true 时采用多视角合并建议。
+    当 dry_run=false 且配置了 news_trade_cooldown_seconds>0 时，冷却期内再次调用返回 429。
     """
+    global _news_trade_last_run_time
+    cooldown = getattr(settings, "news_trade_cooldown_seconds", 0.0) or 0.0
+    if not dry_run and cooldown > 0:
+        now = time.monotonic()
+        if now - _news_trade_last_run_time < cooldown:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "news-trade run in cooldown", "retry_after_seconds": round(cooldown - (now - _news_trade_last_run_time), 1)},
+            )
+        _news_trade_last_run_time = now
     try:
         runner = run_news_to_trade_multi if multi else run_news_to_trade
         out = runner(news_limit=50, dry_run=dry_run)
