@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # 大盘指数代码（如沪深300）
     default_index_symbol: str = "399300"
 
+    # 日报推送中的图表链接根地址（如 https://your-host:8000），为空则不附带图表链接
+    public_base_url: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

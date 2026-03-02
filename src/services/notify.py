@@ -29,6 +29,14 @@ def _report_to_markdown(report: dict[str, Any]) -> str:
     lines.extend(["", "### 操作检查清单"])
     for c in report.get("checklist", []):
         lines.append(f"- **{c.get('dimension', '')}**：{c.get('hint', '')} — {c.get('remark', '')}")
+    chart_urls = report.get("chart_urls")
+    if chart_urls:
+        lines.extend(["", "### 图表"])
+        for item in chart_urls:
+            url = item.get("url", "")
+            sym = item.get("symbol", "")
+            if url:
+                lines.append(f"- [{sym} 近60日]({url})")
     lines.append("")
     lines.append(f"*生成时间: {report.get('generated_at', '')}*")
     return "\n".join(lines)

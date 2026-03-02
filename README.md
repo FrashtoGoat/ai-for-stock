@@ -28,10 +28,14 @@ cp .env.example .env
 uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
+**运行测试**：`pip install -e ".[dev]"` 后执行 `pytest tests/ -v`。
+
 - 日报接口：`GET http://localhost:8000/api/daily-report?symbols=600519,000001`
 - **生成并推送**：`GET http://localhost:8000/api/daily-report/push`（生成日报并推到已配置的飞书/钉钉）
 - **新闻→操作建议→模拟交易**：`POST /api/news-trade/run?dry_run=true`（仅建议），`POST /api/news-trade/run?dry_run=false`（执行模拟下单）；`GET /api/news-trade/suggestions`（仅返回建议）
+- **图表（图文报告）**：`GET http://localhost:8000/api/chart?symbol=600519&days=60` 返回 PNG 近 N 日收盘价曲线，供报告或 OpenClaw 内嵌
 - 健康检查：`GET http://localhost:8000/health`
+- **接口文档**：启动后访问 `http://localhost:8000/docs` 查看 Swagger UI。
 
 ## 接下来干嘛（Phase 1 收尾）
 
@@ -54,6 +58,7 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 | `OPENAI_MODEL` | 模型名，如 `gpt-4o-mini`、`deepseek-chat` |
 | `SIM_BROKER_INITIAL_CASH` | 本地模拟盘初始资金（默认 1000000） |
 | `DEFAULT_INDEX_SYMBOL` | 大盘指数代码（默认 399300 沪深300） |
+| `PUBLIC_BASE_URL` | 日报推送中图表链接根地址（如 `http://your-server:8000`），可选 |
 
 ## 文档与脚本
 
@@ -63,8 +68,13 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 | [scripts/daily-report-push.ps1](scripts/daily-report-push.ps1) | Windows：请求 push 接口，可被任务计划程序调用 |
 | [scripts/daily-report-push.sh](scripts/daily-report-push.sh) | Linux/Mac：curl 请求 push 接口，可放入 crontab |
 
+## Phase 2：图表能力（已实现）
+
+- 使用 AKShare 日 K + matplotlib 生成标的近 N 日收盘价曲线 PNG。
+- `GET /api/chart?symbol=600519&days=60`：OpenClaw 或报告流程可请求该 URL 内嵌图片，实现「图文并茂」。
+
 ## 后续 Phase
 
-- **Phase 2**：OpenBB Tools 封装，图文报告。
 - **Phase 3**：ai-hedge-fund 多策略 Agent（游资/北向/价值）辩论。
 - **Phase 4**：FinGenius 16 角色 Agent 协同。
+- 可选：将 OpenBB 数据/图表封装为更多 Tools，进一步丰富报告。

@@ -2,9 +2,10 @@
 FastAPI 入口：提供每日决策日报、新闻→操作建议→交易 等 API。
 """
 from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from src.config import settings
+from src.services.chart import render_chart_png
 from src.services.daily_report import build_daily_report
 from src.services.notify import push_to_dingtalk, push_to_feishu
 from src.services.pipeline import run_news_to_trade
@@ -79,6 +80,9 @@ def get_daily_report_and_push(
             status_code=500,
             content={"detail": "生成日报失败", "error": str(e)},
         )
+    if settings.public_base_url:
+        base = settings.public_base_url.rstrip("/")
+        report["chart_urls"] = [{"symbol": s, "url": f"{base}/api/chart?symbol={s}&days=60"} for s in symbol_list]
     results = {"report_generated": True, "feishu": None, "dingtalk": None}
     if settings.feishu_webhook_url:
         ok, msg = push_to_feishu(settings.feishu_webhook_url, report)
@@ -112,3 +116,16 @@ def api_news_trade_suggestions():
         return {"suggestions": out.get("suggestions"), "market": out.get("market"), "industries_and_symbols": out.get("industries_and_symbols"), "error": out.get("error")}
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": "suggestions failed", "error": str(e)})
+
+
+@app.get("/api/chart")
+def api_chart(
+    symbol: str = Query(..., description="A 股代码，如 600519"),
+    days: int = Query(60, ge=5, le=250, description="近 N 个交易日"),
+):
+    """生成标的近 N 日收盘价曲线图 PNG，供报告或 OpenClaw 图文并茂。"""
+    try:
+        png_bytes = render_chart_png(symbol.strip(), days=days)
+        return Response(content=png_bytes, media_type="image/png")
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": "chart failed", "error": str(e)})
