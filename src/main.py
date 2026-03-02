@@ -1,5 +1,5 @@
 """
-FastAPI 入口：提供每日决策日报等 API，供 OpenClaw 工作流调用。
+FastAPI 入口：提供每日决策日报、新闻→操作建议→交易 等 API。
 """
 from fastapi import FastAPI, Query
 from fastapi.responses import JSONResponse
@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from src.config import settings
 from src.services.daily_report import build_daily_report
 from src.services.notify import push_to_dingtalk, push_to_feishu
+from src.services.pipeline import run_news_to_trade
 
 app = FastAPI(
     title="ai-for-stock",
@@ -88,3 +89,26 @@ def get_daily_report_and_push(
     if not (settings.feishu_webhook_url or settings.dingtalk_webhook_url):
         results["hint"] = "未配置 FEISHU_WEBHOOK_URL 或 DINGTALK_WEBHOOK_URL，仅返回日报未推送"
     return {"report": report, "push": results}
+
+
+@app.post("/api/news-trade/run")
+def api_news_trade_run(dry_run: bool = True):
+    """
+    执行新闻→行业/标的→大盘与行情→操作建议→（可选）模拟下单。
+    dry_run=true 时只执行到操作建议，不下单；dry_run=false 时调用模拟盘下单。
+    """
+    try:
+        out = run_news_to_trade(news_limit=50, dry_run=dry_run)
+        return out
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": "pipeline failed", "error": str(e)})
+
+
+@app.get("/api/news-trade/suggestions")
+def api_news_trade_suggestions():
+    """仅执行到「操作建议」并返回，不下单。便于调试与人工确认。"""
+    try:
+        out = run_news_to_trade(news_limit=50, dry_run=True)
+        return {"suggestions": out.get("suggestions"), "market": out.get("market"), "industries_and_symbols": out.get("industries_and_symbols"), "error": out.get("error")}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": "suggestions failed", "error": str(e)})

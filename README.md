@@ -30,6 +30,7 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
 - 日报接口：`GET http://localhost:8000/api/daily-report?symbols=600519,000001`
 - **生成并推送**：`GET http://localhost:8000/api/daily-report/push`（生成日报并推到已配置的飞书/钉钉）
+- **新闻→操作建议→模拟交易**：`POST /api/news-trade/run?dry_run=true`（仅建议），`POST /api/news-trade/run?dry_run=false`（执行模拟下单）；`GET /api/news-trade/suggestions`（仅返回建议）
 - 健康检查：`GET http://localhost:8000/health`
 
 ## 接下来干嘛（Phase 1 收尾）
@@ -46,8 +47,13 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 | 变量 | 说明 |
 |------|------|
 | `STOCK_SYMBOLS_DEFAULT` | 默认自选股代码，逗号分隔，如 `600519,000001` |
-| `FEISHU_WEBHOOK_URL` | 飞书 Webhook（可选，供 OpenClaw 或本服务推送） |
+| `FEISHU_WEBHOOK_URL` | 飞书 Webhook（可选） |
 | `DINGTALK_WEBHOOK_URL` | 钉钉 Webhook（可选） |
+| `OPENAI_API_BASE` | 大模型 API 地址（OpenAI 兼容，如 DeepSeek） |
+| `OPENAI_API_KEY` | 大模型 API Key |
+| `OPENAI_MODEL` | 模型名，如 `gpt-4o-mini`、`deepseek-chat` |
+| `SIM_BROKER_INITIAL_CASH` | 本地模拟盘初始资金（默认 1000000） |
+| `DEFAULT_INDEX_SYMBOL` | 大盘指数代码（默认 399300 沪深300） |
 
 ## 文档与脚本
 

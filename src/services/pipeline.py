@@ -1,0 +1,74 @@
+"""
+新闻 → 行业/标的 → 大盘+行情 → 操作建议 → 模拟下单。主流程编排。
+"""
+from __future__ import annotations
+
+from typing import Any, Protocol
+
+from src.services.broker_sim import get_sim_broker
+from src.services.llm import get_industries_and_symbols, get_trading_suggestions
+from src.services.market import get_market_and_symbols_quote
+from src.services.news_fetcher import fetch_recent_news
+
+
+def run_news_to_trade(
+    news_limit: int = 50,
+    dry_run: bool = True,
+    broker: Any | None = None,
+) -> dict[str, Any]:
+    """
+    执行完整链路：拉新闻 → LLM 得行业+标的 → 取大盘与标的行情 → LLM 得操作建议 → 按建议下单（dry_run 则不下单）。
+    broker 不传时使用本地 SimBroker；传入则可为第三方模拟/实盘实现。
+    """
+    result: dict[str, Any] = {
+        "news": [],
+        "industries_and_symbols": {},
+        "market": {},
+        "suggestions": {},
+        "orders": [],
+        "error": None,
+    }
+    # 1) 拉新闻
+    news_items = fetch_recent_news(limit=news_limit)
+    result["news"] = [{"time": n.get("time"), "content": (n.get("title", "") + " " + n.get("content", ""))[:200]} for n in news_items]
+    if not news_items:
+        result["error"] = "no news fetched"
+        return result
+    # 2) LLM 行业+标的
+    ir = get_industries_and_symbols(news_items)
+    result["industries_and_symbols"] = ir
+    symbols = ir.get("symbols") or []
+    if ir.get("error"):
+        result["error"] = ir.get("error")
+    if not symbols:
+        return result
+    # 3) 大盘+标的行情
+    market = get_market_and_symbols_quote(symbols)
+    result["market"] = market
+    symbols_quote = market.get("symbols") or []
+    # 新闻摘要（供 LLM）
+    news_summary = "\n".join(f"[{n.get('time')}] {n.get('content', '')}" for n in news_items[:30])
+    # 4) LLM 操作建议
+    sug = get_trading_suggestions(news_summary, market.get("index") or {}, symbols_quote)
+    result["suggestions"] = sug
+    if sug.get("error"):
+        result["error"] = sug.get("error")
+    # 5) 下单（仅 buy/sell，hold 不调）
+    if dry_run:
+        result["orders"] = [{"dry_run": True, "action": a} for a in (sug.get("actions") or []) if (a.get("action") or "hold") in ("buy", "sell")]
+        return result
+    broker = broker or get_sim_broker()
+    orders_out = []
+    for a in sug.get("actions") or []:
+        act = (a.get("action") or "hold").lower()
+        if act not in ("buy", "sell"):
+            continue
+        sym = str(a.get("symbol", "")).strip().zfill(6)
+        vol = max(100, (int(a.get("suggested_amount") or 0) // 100) * 100)
+        if act == "buy":
+            r = broker.order_buy(sym, vol, price=None)
+        else:
+            r = broker.order_sell(sym, vol, price=None)
+        orders_out.append({"action": act, "symbol": sym, "volume": vol, "result": r})
+    result["orders"] = orders_out
+    return result
