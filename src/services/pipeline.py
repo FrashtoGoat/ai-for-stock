@@ -17,10 +17,12 @@ def run_news_to_trade(
     news_limit: int = 50,
     dry_run: bool = True,
     broker: Any | None = None,
+    news_items: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """
-    执行完整链路：拉新闻 → LLM 得行业+标的 → 取大盘与标的行情 → LLM 得操作建议 → 按建议下单（dry_run 则不下单）。
+    执行完整链路：拉新闻（或使用注入的 news_items）→ LLM 得行业+标的 → 取大盘与标的行情 → LLM 得操作建议 → 按建议下单（dry_run 则不下单）。
     broker 不传时使用本地 SimBroker；传入则可为第三方模拟/实盘实现。
+    若传入 news_items，则不再拉取线上新闻，直接以此做分析（用于热点事件分析）。
     """
     result: dict[str, Any] = {
         "news": [],
@@ -30,8 +32,9 @@ def run_news_to_trade(
         "orders": [],
         "error": None,
     }
-    # 1) 拉新闻（带 60s 缓存）
-    news_items = fetch_recent_news_cached(limit=news_limit)
+    # 1) 新闻：注入或拉取（带缓存）
+    if news_items is None:
+        news_items = fetch_recent_news_cached(limit=news_limit)
     result["news"] = [{"time": n.get("time"), "content": (n.get("title", "") + " " + n.get("content", ""))[:200]} for n in news_items]
     if not news_items:
         result["error"] = "no news fetched"
@@ -81,10 +84,11 @@ def run_news_to_trade_multi(
     news_limit: int = 50,
     dry_run: bool = True,
     broker: Any | None = None,
+    news_items: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """
-    与 run_news_to_trade 相同链路，但操作建议采用三视角（游资/北向/价值）分别生成后投票合并。
-    返回中 suggestions 含 perspectives 与 combined。
+    与 run_news_to_trade 相同链路，但操作建议采用多视角分别生成后投票合并。
+    若传入 news_items，则不再拉取线上新闻，直接以此做分析。
     """
     result: dict[str, Any] = {
         "news": [],
@@ -94,7 +98,8 @@ def run_news_to_trade_multi(
         "orders": [],
         "error": None,
     }
-    news_items = fetch_recent_news(limit=news_limit)
+    if news_items is None:
+        news_items = fetch_recent_news_cached(limit=news_limit)
     result["news"] = [{"time": n.get("time"), "content": (n.get("title", "") + " " + n.get("content", ""))[:200]} for n in news_items]
     if not news_items:
         result["error"] = "no news fetched"

@@ -63,6 +63,11 @@ export function runNewsTrade(dryRun = true, multi = false) {
   })
 }
 
+// 热点事件分析：用自定义新闻跑完整链路
+export function analyzeTopic(newsText, multi = false) {
+  return api.post('/api/news-trade/analyze', { news_text: newsText, multi })
+}
+
 // 图表：请求 PNG，成功返回 blob URL，失败抛错（便于展示后端错误）
 export async function fetchChart(symbol, days = 60) {
   try {

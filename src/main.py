@@ -3,9 +3,10 @@ FastAPI 入口：提供每日决策日报、新闻→操作建议→交易 等 A
 """
 import logging
 import time
-from fastapi import FastAPI, Query
+from fastapi import Body, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel
 
 from src.config import settings
 
@@ -161,6 +162,33 @@ def api_news_trade_run(dry_run: bool = True, multi: bool = False):
     except Exception as e:
         logger.exception("news-trade run 失败 dry_run=%s multi=%s", dry_run, multi)
         return JSONResponse(status_code=500, content={"detail": "pipeline failed", "error": str(e)})
+
+
+class AnalyzeTopicBody(BaseModel):
+    """热点事件分析：传入一段新闻/事件描述，跑完整分析链路。"""
+    news_text: str
+    multi: bool = False
+
+
+@app.post("/api/news-trade/analyze", tags=["新闻→交易"])
+def api_news_trade_analyze(body: AnalyzeTopicBody = Body(...)):
+    """
+    用自定义新闻/热点事件跑分析链路（不拉取线上新闻）。
+    例如 news_text=\"美国和以色列袭击伊朗，中东局势升级\"，LLM 会推断受影响行业与 A 股标的并给出操作建议。
+    """
+    text = (body.news_text or "").strip()
+    if not text:
+        return JSONResponse(status_code=400, content={"detail": "news_text 不能为空"})
+    news_items = [{"time": "热点", "title": "", "content": text[:8000], "source": "custom"}]
+    try:
+        if body.multi:
+            out = run_news_to_trade_multi(news_limit=0, dry_run=True, news_items=news_items)
+        else:
+            out = run_news_to_trade(news_limit=0, dry_run=True, news_items=news_items)
+        return out
+    except Exception as e:
+        logger.exception("热点分析失败")
+        return JSONResponse(status_code=500, content={"detail": "analyze failed", "error": str(e)})
 
 
 @app.get("/api/news-trade/suggestions", tags=["新闻→交易"])

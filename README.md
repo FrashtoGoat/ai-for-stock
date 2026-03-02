@@ -32,7 +32,8 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
 - 日报接口：`GET http://localhost:8000/api/daily-report?symbols=600519,000001`
 - **生成并推送**：`GET http://localhost:8000/api/daily-report/push`（生成日报并推到已配置的飞书/钉钉）
-- **新闻→操作建议→模拟交易**：`POST /api/news-trade/run?dry_run=true`（仅建议），`?dry_run=false` 执行模拟下单；`?multi=true` 启用多视角（游资/北向/价值/舆情/风控）合并建议；`GET /api/news-trade/suggestions`、`GET /api/news-trade/suggestions-multi`（仅返回建议）
+- **新闻→操作建议→模拟交易**：`POST /api/news-trade/run?dry_run=true`（仅建议），`?dry_run=false` 执行模拟下单；`?multi=true` 启用多视角合并建议；`GET /api/news-trade/suggestions`、`GET /api/news-trade/suggestions-multi`（仅返回建议）
+- **热点事件分析**：`POST /api/news-trade/analyze`，body `{"news_text": "美国和以色列袭击伊朗…", "multi": false}`，用自定义新闻跑完整分析链路（不拉线上快讯）
 - **图表（图文报告）**：`GET http://localhost:8000/api/chart?symbol=600519&days=60` 返回 PNG 近 N 日收盘价曲线，供报告或 OpenClaw 内嵌
 - 健康检查：`GET http://localhost:8000/health`
 - **接口文档**：启动后访问 `http://localhost:8000/docs` 查看 Swagger UI。
@@ -49,14 +50,14 @@ npm run dev
 
 浏览器打开 http://localhost:5173 。前端会通过 Vite 代理将 `/api`、`/health` 转发到后端（默认 `localhost:8000`），因此需先启动后端。详见 [frontend/README.md](frontend/README.md)。
 
-## 接下来干嘛（Phase 1 收尾）
+## 接下来干嘛（立即可做）
 
-1. **本地跑通**：`uvicorn src.main:app --reload --port 8000`，浏览器访问 `/health` 和 `/api/daily-report` 确认有数据。
-2. **配置推送**：在 `.env` 里填 `FEISHU_WEBHOOK_URL` 或 `DINGTALK_WEBHOOK_URL`（见各自机器人文档获取 Webhook 地址）。
-3. **试推一次**：访问 `GET /api/daily-report/push`，检查飞书/钉钉是否收到日报。
-4. **接 OpenClaw 或系统定时**：
-   - **OpenClaw**：见 [docs/openclaw-daily-report.md](docs/openclaw-daily-report.md)，用 cron + HTTP Tool 调 push 接口。
-   - **不用 OpenClaw**：用系统定时任务执行 `scripts/daily-report-push.ps1`（Windows）或 `scripts/daily-report-push.sh`（Linux/Mac），脚本会请求本机 push 接口。
+1. **本地跑通**：`uvicorn src.main:app --reload --port 8000`，再 `cd frontend && npm run dev`，浏览器打开前端，点日报/图表/热点分析。
+2. **配置 LLM**：`.env` 里填 `OPENAI_API_BASE`、`OPENAI_API_KEY`、`OPENAI_MODEL`，前端「热点事件分析」或「单视角建议」才能出结果。
+3. **配置推送**：填 `FEISHU_WEBHOOK_URL` 或 `DINGTALK_WEBHOOK_URL`，访问 `GET /api/daily-report/push` 试推一次。
+4. **定时日报**：
+   - **OpenClaw**：见 [docs/openclaw-daily-report.md](docs/openclaw-daily-report.md)，cron + HTTP Tool 调 push 接口。
+   - **系统定时**：Windows 用任务计划程序跑 `scripts/daily-report-push.ps1`；Linux/Mac 用 crontab 跑 `scripts/daily-report-push.sh`。
 
 ## 环境变量
 
@@ -106,3 +107,31 @@ npm run dev
 
 - **Phase 4**：FinGenius 16 角色 Agent 协同（OpenClaw 侧配置多 Agent 辩论，本仓库可扩展更多角色或加权合并）。
 - 可选：将 OpenBB 数据/图表封装为更多 Tools；在 broker_live 内对接真实券商 API。
+
+## 整合
+┌─────────────────────────────────────────────────────┐
+│                  OpenClaw 核心调度器                   │
+├─────────────────────────────────────────────────────┤
+│                                                       │
+│  ┌─────────────────────────────────────────────┐    │
+│  │  数据层 (AKShare + OpenBB)                   │    │ ← 每日获取行情、龙虎榜、北向资金
+│  └─────────────────────────────────────────────┘    │
+│                           ↓                          │
+│  ┌─────────────────────────────────────────────┐    │
+│  │  FinGenius式 16人专家团                        │    │ ← 多智能体辩论分析
+│  │  - 舆情分析师、游资猎手、北向专家...              │    │
+│  └─────────────────────────────────────────────┘    │
+│                           ↓                          │
+│  ┌─────────────────────────────────────────────┐    │
+│  │  ai-hedge-fund式 多策略碰撞                    │    │ ← 价值派 vs 游资派 vs 北向派
+│  └─────────────────────────────────────────────┘    │
+│                           ↓                          │
+│  ┌─────────────────────────────────────────────┐    │
+│  │  daily_stock_analysis式 决策仪表盘             │    │ ← 输出买卖点位、检查清单
+│  └─────────────────────────────────────────────┘    │
+│                           ↓                          │
+│  ┌─────────────────────────────────────────────┐    │
+│  │  OpenBB可视化 + 飞书推送                       │    │ ← 图文报告直达手机
+│  └─────────────────────────────────────────────┘    │
+│                                                       │
+└─────────────────────────────────────────────────────┘
