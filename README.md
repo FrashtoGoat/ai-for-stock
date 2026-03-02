@@ -37,6 +37,18 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 - 健康检查：`GET http://localhost:8000/health`
 - **接口文档**：启动后访问 `http://localhost:8000/docs` 查看 Swagger UI。
 
+## 前端（Vue 3 + Vite + Element Plus）
+
+提供简易决策台页面，便于本地调试：健康状态、日报、新闻→交易建议与执行、标的图表。
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+浏览器打开 http://localhost:5173 。前端会通过 Vite 代理将 `/api`、`/health` 转发到后端（默认 `localhost:8000`），因此需先启动后端。详见 [frontend/README.md](frontend/README.md)。
+
 ## 接下来干嘛（Phase 1 收尾）
 
 1. **本地跑通**：`uvicorn src.main:app --reload --port 8000`，浏览器访问 `/health` 和 `/api/daily-report` 确认有数据。

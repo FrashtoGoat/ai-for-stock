@@ -1,4 +1,5 @@
 """配置：从环境变量读取，不提交密钥。"""
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 
@@ -40,10 +41,11 @@ class Settings(BaseSettings):
     # 日报推送中的图表链接根地址（如 https://your-host:8000），为空则不附带图表链接
     public_base_url: str = ""
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        extra = "ignore"
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 settings = Settings()

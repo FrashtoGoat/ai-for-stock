@@ -1,11 +1,21 @@
 """
 FastAPI 入口：提供每日决策日报、新闻→操作建议→交易 等 API。
 """
+import logging
 import time
 from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
 from src.config import settings
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("ai-for-stock")
+
 from src.services.chart import render_chart_png
 from src.services.daily_report import build_daily_report
 from src.services.notify import push_to_dingtalk, push_to_feishu
@@ -19,6 +29,27 @@ app = FastAPI(
     description="A-share daily report API for OpenClaw (AKShare + daily_stock_analysis template)",
     version=APP_VERSION,
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.middleware("http")
+async def log_requests(request, call_next):
+    logger.info("→ %s %s", request.method, request.url.path)
+    try:
+        response = await call_next(request)
+        logger.info("← %s %s → %s", request.method, request.url.path, response.status_code)
+        return response
+    except Exception as e:
+        logger.exception("请求处理异常 %s %s: %s", request.method, request.url.path, e)
+        raise
+
 
 _MAX_SYMBOLS = 20
 
@@ -59,6 +90,7 @@ def get_daily_report(
         report = build_daily_report(symbol_list)
         return report
     except Exception as e:
+        logger.exception("日报生成失败 symbols=%s", symbol_list)
         return JSONResponse(
             status_code=500,
             content={"detail": "生成日报失败", "error": str(e)},
@@ -85,6 +117,7 @@ def get_daily_report_and_push(
     try:
         report = build_daily_report(symbol_list)
     except Exception as e:
+        logger.exception("日报生成失败( push ) symbols=%s", symbol_list)
         return JSONResponse(
             status_code=500,
             content={"detail": "生成日报失败", "error": str(e)},
@@ -126,6 +159,7 @@ def api_news_trade_run(dry_run: bool = True, multi: bool = False):
         out = runner(news_limit=50, dry_run=dry_run)
         return out
     except Exception as e:
+        logger.exception("news-trade run 失败 dry_run=%s multi=%s", dry_run, multi)
         return JSONResponse(status_code=500, content={"detail": "pipeline failed", "error": str(e)})
 
 
@@ -136,6 +170,7 @@ def api_news_trade_suggestions():
         out = run_news_to_trade(news_limit=50, dry_run=True)
         return {"suggestions": out.get("suggestions"), "market": out.get("market"), "industries_and_symbols": out.get("industries_and_symbols"), "error": out.get("error")}
     except Exception as e:
+        logger.exception("suggestions 失败")
         return JSONResponse(status_code=500, content={"detail": "suggestions failed", "error": str(e)})
 
 
@@ -151,6 +186,7 @@ def api_news_trade_suggestions_multi():
             "error": out.get("error"),
         }
     except Exception as e:
+        logger.exception("suggestions-multi 失败")
         return JSONResponse(status_code=500, content={"detail": "suggestions-multi failed", "error": str(e)})
 
 
@@ -164,4 +200,5 @@ def api_chart(
         png_bytes = render_chart_png(symbol.strip(), days=days)
         return Response(content=png_bytes, media_type="image/png")
     except Exception as e:
+        logger.exception("图表生成失败 symbol=%s days=%s", symbol, days)
         return JSONResponse(status_code=500, content={"detail": "chart failed", "error": str(e)})

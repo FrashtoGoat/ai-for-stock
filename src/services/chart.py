@@ -36,14 +36,14 @@ def render_chart_png(symbol: str, days: int = 60, title: str | None = None) -> b
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    plt.rcParams["font.sans-serif"] = ["SimHei", "DejaVu Sans"]
+    plt.rcParams["font.sans-serif"] = ["DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False
     fig, ax = plt.subplots(figsize=(10, 4))
     dates = [r.get("日期", r.get("date", "")) for r in rows]
     closes = [float(r.get("收盘", r.get("close", 0)) or 0) for r in rows]
     ax.plot(range(len(dates)), closes, color="#2563eb", linewidth=1.5)
-    ax.set_title(title or f"{symbol} 近{days}日收盘价")
-    ax.set_ylabel("收盘价")
+    ax.set_title(title or f"{symbol} close ({days}d)")
+    ax.set_ylabel("Close")
     n = len(dates)
     if n > 0:
         step = max(1, n // 6)
@@ -64,7 +64,7 @@ def _empty_chart_png(symbol: str) -> bytes:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(10, 4))
-    ax.text(0.5, 0.5, f"{symbol} 暂无数据", ha="center", va="center", fontsize=14)
+    ax.text(0.5, 0.5, f"{symbol} no data", ha="center", va="center", fontsize=14)
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.axis("off")
