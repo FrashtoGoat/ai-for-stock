@@ -3,10 +3,10 @@
 """
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any
 
 from src.services.broker_sim import get_sim_broker
-from src.services.llm import get_industries_and_symbols, get_trading_suggestions
+from src.services.llm import get_industries_and_symbols, get_trading_suggestions, get_trading_suggestions_multi
 from src.services.market import get_market_and_symbols_quote
 from src.services.news_fetcher import fetch_recent_news
 
@@ -60,6 +60,63 @@ def run_news_to_trade(
     broker = broker or get_sim_broker()
     orders_out = []
     for a in sug.get("actions") or []:
+        act = (a.get("action") or "hold").lower()
+        if act not in ("buy", "sell"):
+            continue
+        sym = str(a.get("symbol", "")).strip().zfill(6)
+        vol = max(100, (int(a.get("suggested_amount") or 0) // 100) * 100)
+        if act == "buy":
+            r = broker.order_buy(sym, vol, price=None)
+        else:
+            r = broker.order_sell(sym, vol, price=None)
+        orders_out.append({"action": act, "symbol": sym, "volume": vol, "result": r})
+    result["orders"] = orders_out
+    return result
+
+
+def run_news_to_trade_multi(
+    news_limit: int = 50,
+    dry_run: bool = True,
+    broker: Any | None = None,
+) -> dict[str, Any]:
+    """
+    与 run_news_to_trade 相同链路，但操作建议采用三视角（游资/北向/价值）分别生成后投票合并。
+    返回中 suggestions 含 perspectives 与 combined。
+    """
+    result: dict[str, Any] = {
+        "news": [],
+        "industries_and_symbols": {},
+        "market": {},
+        "suggestions": {},
+        "orders": [],
+        "error": None,
+    }
+    news_items = fetch_recent_news(limit=news_limit)
+    result["news"] = [{"time": n.get("time"), "content": (n.get("title", "") + " " + n.get("content", ""))[:200]} for n in news_items]
+    if not news_items:
+        result["error"] = "no news fetched"
+        return result
+    ir = get_industries_and_symbols(news_items)
+    result["industries_and_symbols"] = ir
+    symbols = ir.get("symbols") or []
+    if ir.get("error"):
+        result["error"] = ir.get("error")
+    if not symbols:
+        return result
+    market = get_market_and_symbols_quote(symbols)
+    result["market"] = market
+    symbols_quote = market.get("symbols") or []
+    news_summary = "\n".join(f"[{n.get('time')}] {n.get('content', '')}" for n in news_items[:30])
+    sug = get_trading_suggestions_multi(news_summary, market.get("index") or {}, symbols_quote)
+    result["suggestions"] = sug
+    if sug.get("error"):
+        result["error"] = sug.get("error")
+    if dry_run:
+        result["orders"] = [{"dry_run": True, "action": a} for a in (sug.get("combined", {}).get("actions") or []) if (a.get("action") or "hold") in ("buy", "sell")]
+        return result
+    broker = broker or get_sim_broker()
+    orders_out = []
+    for a in sug.get("combined", {}).get("actions") or []:
         act = (a.get("action") or "hold").lower()
         if act not in ("buy", "sell"):
             continue

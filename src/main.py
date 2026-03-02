@@ -8,7 +8,7 @@ from src.config import settings
 from src.services.chart import render_chart_png
 from src.services.daily_report import build_daily_report
 from src.services.notify import push_to_dingtalk, push_to_feishu
-from src.services.pipeline import run_news_to_trade
+from src.services.pipeline import run_news_to_trade, run_news_to_trade_multi
 
 app = FastAPI(
     title="ai-for-stock",
@@ -96,13 +96,14 @@ def get_daily_report_and_push(
 
 
 @app.post("/api/news-trade/run")
-def api_news_trade_run(dry_run: bool = True):
+def api_news_trade_run(dry_run: bool = True, multi: bool = False):
     """
     执行新闻→行业/标的→大盘与行情→操作建议→（可选）模拟下单。
-    dry_run=true 时只执行到操作建议，不下单；dry_run=false 时调用模拟盘下单。
+    dry_run=true 时只执行到操作建议，不下单；multi=true 时采用三视角（游资/北向/价值）合并建议。
     """
     try:
-        out = run_news_to_trade(news_limit=50, dry_run=dry_run)
+        runner = run_news_to_trade_multi if multi else run_news_to_trade
+        out = runner(news_limit=50, dry_run=dry_run)
         return out
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": "pipeline failed", "error": str(e)})
@@ -116,6 +117,21 @@ def api_news_trade_suggestions():
         return {"suggestions": out.get("suggestions"), "market": out.get("market"), "industries_and_symbols": out.get("industries_and_symbols"), "error": out.get("error")}
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": "suggestions failed", "error": str(e)})
+
+
+@app.get("/api/news-trade/suggestions-multi")
+def api_news_trade_suggestions_multi():
+    """多策略三视角（游资/北向/价值）分别给出建议并投票合并，仅返回建议不下单。"""
+    try:
+        out = run_news_to_trade_multi(news_limit=50, dry_run=True)
+        return {
+            "suggestions": out.get("suggestions"),
+            "market": out.get("market"),
+            "industries_and_symbols": out.get("industries_and_symbols"),
+            "error": out.get("error"),
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": "suggestions-multi failed", "error": str(e)})
 
 
 @app.get("/api/chart")

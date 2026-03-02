@@ -32,7 +32,7 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
 - 日报接口：`GET http://localhost:8000/api/daily-report?symbols=600519,000001`
 - **生成并推送**：`GET http://localhost:8000/api/daily-report/push`（生成日报并推到已配置的飞书/钉钉）
-- **新闻→操作建议→模拟交易**：`POST /api/news-trade/run?dry_run=true`（仅建议），`POST /api/news-trade/run?dry_run=false`（执行模拟下单）；`GET /api/news-trade/suggestions`（仅返回建议）
+- **新闻→操作建议→模拟交易**：`POST /api/news-trade/run?dry_run=true`（仅建议），`?dry_run=false` 执行模拟下单；`?multi=true` 启用三视角（游资/北向/价值）合并建议；`GET /api/news-trade/suggestions`、`GET /api/news-trade/suggestions-multi`（仅返回建议）
 - **图表（图文报告）**：`GET http://localhost:8000/api/chart?symbol=600519&days=60` 返回 PNG 近 N 日收盘价曲线，供报告或 OpenClaw 内嵌
 - 健康检查：`GET http://localhost:8000/health`
 - **接口文档**：启动后访问 `http://localhost:8000/docs` 查看 Swagger UI。
@@ -73,8 +73,12 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 - 使用 AKShare 日 K + matplotlib 生成标的近 N 日收盘价曲线 PNG。
 - `GET /api/chart?symbol=600519&days=60`：OpenClaw 或报告流程可请求该 URL 内嵌图片，实现「图文并茂」。
 
+## Phase 3：多策略三视角（已实现）
+
+- **游资 / 北向 / 价值** 三种角色分别生成操作建议，再按标的投票合并，降低单一视角偏差。
+- `GET /api/news-trade/suggestions-multi`：仅返回三视角与合并结果；`POST /api/news-trade/run?multi=true`：全链路采用合并建议并可模拟下单。
+
 ## 后续 Phase
 
-- **Phase 3**：ai-hedge-fund 多策略 Agent（游资/北向/价值）辩论。
-- **Phase 4**：FinGenius 16 角色 Agent 协同。
+- **Phase 4**：FinGenius 16 角色 Agent 协同（OpenClaw 侧配置多 Agent 辩论）。
 - 可选：将 OpenBB 数据/图表封装为更多 Tools，进一步丰富报告。
