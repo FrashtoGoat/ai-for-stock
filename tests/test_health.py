@@ -24,6 +24,14 @@ def test_daily_report_requires_symbols_or_default():
         assert "symbols" in r.json().get("detail", "").lower() or "STOCK_SYMBOLS" in str(r.json())
 
 
+def test_daily_report_symbols_capped():
+    many = ",".join(["600519"] * 25)
+    r = client.get("/api/daily-report", params={"symbols": many})
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body.get("symbols_queried", [])) <= 20
+
+
 def test_chart_returns_png():
     r = client.get("/api/chart", params={"symbol": "600519", "days": "30"})
     assert r.status_code == 200

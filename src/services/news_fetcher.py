@@ -5,9 +5,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.config import settings
 from src.services.cache import get_or_set
-
-_NEWS_CACHE_TTL = 60.0
 
 
 def fetch_recent_news(limit: int = 50) -> list[dict[str, Any]]:
@@ -51,6 +50,9 @@ def fetch_recent_news(limit: int = 50) -> list[dict[str, Any]]:
     return out
 
 
-def fetch_recent_news_cached(limit: int = 50, ttl: float = _NEWS_CACHE_TTL) -> list[dict[str, Any]]:
-    """带缓存的拉取，ttl 秒内重复调用返回缓存结果。"""
-    return get_or_set(f"news:{limit}", lambda: fetch_recent_news(limit), ttl=ttl)
+def fetch_recent_news_cached(limit: int = 50, ttl: float | None = None) -> list[dict[str, Any]]:
+    """带缓存的拉取，ttl 秒内重复调用返回缓存结果；ttl<=0 不缓存。"""
+    t = ttl if ttl is not None else getattr(settings, "cache_ttl_seconds", 60.0)
+    if t <= 0:
+        return fetch_recent_news(limit)
+    return get_or_set(f"news:{limit}", lambda: fetch_recent_news(limit), ttl=t)

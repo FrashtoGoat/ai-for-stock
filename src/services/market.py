@@ -86,12 +86,15 @@ def get_market_and_symbols_quote(symbols: list[str], index_symbol: str | None = 
 def get_market_and_symbols_quote_cached(
     symbols: list[str],
     index_symbol: str | None = None,
-    ttl: float = 60.0,
+    ttl: float | None = None,
 ) -> dict[str, Any]:
-    """带缓存的行情获取，ttl 秒内相同 symbols 返回缓存。"""
+    """带缓存的行情获取，ttl 秒内相同 symbols 返回缓存；ttl<=0 不缓存。"""
     from src.services.cache import get_or_set
+    t = ttl if ttl is not None else getattr(settings, "cache_ttl_seconds", 60.0)
+    if t <= 0:
+        return get_market_and_symbols_quote(symbols, index_symbol)
     key_index = f"index:{index_symbol or settings.default_index_symbol or '399300'}"
     key_syms = "symbols:" + ",".join(sorted(s.strip().zfill(6) for s in symbols))
-    index = get_or_set(key_index, lambda: get_index_quote(index_symbol), ttl=ttl)
-    syms = get_or_set(key_syms, lambda: get_symbols_quote(symbols), ttl=ttl)
+    index = get_or_set(key_index, lambda: get_index_quote(index_symbol), ttl=t)
+    syms = get_or_set(key_syms, lambda: get_symbols_quote(symbols), ttl=t)
     return {"index": index, "symbols": syms}

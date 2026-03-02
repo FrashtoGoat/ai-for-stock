@@ -60,6 +60,8 @@ uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 | `LLM_MAX_RETRIES` | 大模型失败重试次数（默认 2） |
 | `SIM_BROKER_INITIAL_CASH` | 本地模拟盘初始资金（默认 1000000） |
 | `DEFAULT_INDEX_SYMBOL` | 大盘指数代码（默认 399300 沪深300） |
+| `CACHE_TTL_SECONDS` | 新闻/行情缓存 TTL（秒），0 不缓存，默认 60 |
+| `MAX_SYMBOLS_PER_REQUEST` | 单次请求最大标的数，默认 20 |
 | `PUBLIC_BASE_URL` | 日报推送中图表链接根地址（如 `http://your-server:8000`），可选 |
 
 ## 文档与脚本
